@@ -1,0 +1,194 @@
+# ================================================================================
+#             Dockerfile to setup build environment for LAMMPS build
+# ================================================================================
+FROM centos:centos7
+MAINTAINER Jarrod Leddy "jleddy@txcorp.com"
+
+
+# ----------------------------------------------------------------
+# Convenient network/system tools
+# ----------------------------------------------------------------
+RUN yum -y groupinstall development
+RUN yum install -y epel-release
+RUN yum install -y emacs-nox vim git
+#RUN yum install -y texlive okular
+#RUN yum install -y perl-devel prelink gcc-gfortran tcsh openssh-clients which
+
+
+# ----------------------------------------------------------------
+# Python
+# ----------------------------------------------------------------
+RUN yum -y install python-pip python-devel
+RUN python -m pip install --upgrade pip
+RUN python -m pip install setuptools --upgrade
+RUN python -m pip install numpy scipy netcdf4
+#RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm
+#RUN yum -y install python36u python36u-pip
+RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm
+RUN yum install -y python36u
+RUN ln -s /usr/bin/python3.6 /usr/bin/python3
+RUN yum install -y python36u-devel python36u-pip
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install setuptools --upgrade
+RUN python3 -m pip install numpy scipy netcdf4
+
+
+# ----------------------------------------------------------------
+# Get BOUT++ from the github repo (most recent patch)
+# ----------------------------------------------------------------
+# retrieve from git repo
+RUN git clone git://github.com/boutproject/BOUT-dev.git BOUT-dev
+WORKDIR /BOUT-dev/
+RUN git pull
+# build the documentation
+#RUN make -C /mylammps/doc html
+#RUN yum install -y htmldoc
+#RUN make -C /mylammps/doc pdf
+
+
+# ----------------------------------------------------------------
+# Get BOUT++ dependencies
+# ----------------------------------------------------------------
+#####################
+# Install mpich
+WORKDIR /
+RUN yum install wget -y
+#ENV PATH="/mpich-install/bin:${PATH}"
+RUN wget https://www.mpich.org/static/tarballs/3.2.1/mpich-3.2.1.tar.gz
+RUN tar -xzvf mpich-3.2.1.tar.gz
+WORKDIR /mpich-3.2.1/
+RUN ./configure
+RUN make
+RUN make install
+
+
+#####################
+# Install FFTW, BLAS, LAPACK and CMAKE
+RUN yum install -y fftw-devel hdf5 blas-devel lapack-devel
+RUN yum install -y cmake #scorep
+
+
+#####################
+# Install SUNDIALS
+WORKDIR /
+RUN wget https://computation.llnl.gov/projects/sundials/download/sundials-2.6.0.tar.gz
+RUN tar -xvzf sundials-2.6.0.tar.gz
+WORKDIR /sundials-2.6.0/
+RUN mkdir build
+RUN mkdir -p /usr/local/examples
+WORKDIR /sundials-2.6.0/build/
+RUN cmake \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DEXAMPLES_INSTALL_PATH=/usr/local/examples \
+  -DCMAKE_LINKER=/usr/lib \
+  -DLAPACK_ENABLE=ON \
+  -DOPENMP_ENABLE=ON \
+  -DMPI_ENABLE=ON \
+  ../
+RUN make
+RUN make install
+
+#####################
+# Install PETSC
+WORKDIR /
+RUN wget http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-3.5.4.tar.gz
+RUN tar -xvzf petsc-3.5.4.tar.gz
+WORKDIR /petsc-3.5.4/
+RUN ./configure --with-clanguage=cxx --with-mpi=yes --with-precision=double --with-scalar-type=real \
+--download-mumps=1 --download-scalapack=1 --download-blacs=1 --download-fblas-lapack=1 \
+--download-parmetis=1 --download-ptscotch=1 --download-metis=1 --with-shared-libraries=0 --with-sundials-dir=/usr/local \
+--download-pnetcdf=1
+RUN make -f /petsc-3.5.4/makefile all
+RUN make -f /petsc-3.5.4/makefile PETSC_DIR=/petsc-3.5.4 PETSC_ARCH=arch-linux2-cxx-debug test
+ENV PATH="/petsc-3.5.4/arch-linux2-cxx-debug/include/:${PATH}"
+ENV PETSC_DIR=/petsc-3.5.4/
+ENV PETSC_ARCH=arch-linux2-cxx-debug
+RUN ln -s /petsc-3.5.4/arch-linux2-cxx-debug/include/* /usr/include/
+RUN ln -s /petsc-3.5.4/arch-linux2-cxx-debug/lib/*a /usr/lib/
+RUN ln -s /petsc-3.5.4/arch-linux2-cxx-debug/lib/modules/* /usr/lib/modules/
+
+
+#####################
+# Install SLEPC
+WORKDIR /
+RUN wget http://slepc.upv.es/download/distrib/slepc-3.5.4.tar.gz
+RUN tar xzf slepc-3.5.4.tar.gz
+ENV SLEPC_DIR=/slepc-3.5.4
+WORKDIR /slepc-3.5.4/
+RUN ./configure
+RUN make SLEPC_DIR=$PWD PETSC_DIR=/petsc-3.5.4/ PETSC_ARCH=arch-linux2-cxx-debug
+RUN make test
+
+
+#####################
+# Install NETCDF
+WORKDIR /
+RUN yum install -y zlib-devel hdf5-devel
+RUN wget https://www.unidata.ucar.edu/downloads/netcdf/ftp/netcdf-4.6.1.tar.gz
+RUN tar -xzvf netcdf-4.6.1.tar.gz
+WORKDIR /netcdf-4.6.1/
+RUN ./configure --prefix=/usr/local --disable-dap --enable-parallel
+RUN make
+RUN make install
+
+
+#####################
+# Install NETCDF-cxx
+WORKDIR /
+RUN wget https://www.unidata.ucar.edu/downloads/netcdf/ftp/netcdf-cxx4-4.3.0.tar.gz
+RUN tar -xzvf netcdf-cxx4-4.3.0.tar.gz
+WORKDIR /netcdf-cxx4-4.3.0/
+RUN ./configure --prefix=/usr/local
+RUN make
+RUN make install
+WORKDIR /
+ENV PATH="/usr/local/include/:${PATH}"
+
+
+#####################
+# Install PNETCDF
+#WORKDIR /
+#RUN wget http://cucis.ece.northwestern.edu/projects/PnetCDF/Release/parallel-netcdf-1.6.1.tar.gz #http://cucis.ece.northwestern.edu/projects/PnetCDF/Release/parallel-netcdf-1.8.1.tar.gz #http://cucis.ece.northwestern.edu/projects/PnetCDF/Release/parallel-netcdf-1.10.0.tar.gz
+#RUN tar -xvzf parallel-netcdf-1.6.1.tar.gz
+#WORKDIR /parallel-netcdf-1.6.1/
+#RUN ./configure
+#RUN make
+#RUN make install
+
+
+#####################
+# Install SCOREP
+#WORKDIR /
+#RUN yum install -y scorep
+#RUN wget http://www.vi-hps.org/upload/packages/scorep/scorep-4.0.tar.gz
+#RUN tar xzvf scorep-4.0.tar.gz
+#WORKDIR /scorep-4.0/
+#RUN ./configure
+#RUN make
+#RUN make install
+
+# ----------------------------------------------------------------
+# Build and install BOUT++
+# ----------------------------------------------------------------
+# configure and build BOUT++ source code
+WORKDIR /BOUT-dev/
+RUN ./configure --with-petsc PETSC_DIR=/petsc-3.5.4 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/local/ --with-fftw --with-netcdf --enable-openmp --with-mumps --with-cvode --with-arkode # --with-slepc --with-pnetcdf
+#CPPFLAGS=-I/petsc-3.4.5/arch-linux2-cxx-debug/include LDFLAGS="-Wl,-rpath,/petsc-3.4.5/arch-linux2-cxx-debug/lib -L/petsc-3.4.5/arch-linux2-cxx-debug/lib"  LIBS="-lcmumps -ldmumps -lsmumps -lzmumps -lmumps_common -lpord -lsundials_cvode -lsundials_nvecserial -lsundials_nvecparallel"
+ENV PYTHONPATH=/BOUT-dev/tools/pylib/:$PYTHONPATH
+RUN make
+RUN git submodule update --init --recursive
+RUN make check-unit-tests
+RUN make check-mms-tests
+RUN ln -s /BOUT-dev /home/
+WORKDIR /home/
+
+
+
+# ----------------------------------------------------------------
+# Print out some user information
+# ----------------------------------------------------------------
+#RUN echo "Welcome to the BOUT++ container!"
+#RUN echo "--------------------------------"
+#RUN echo ""
+#RUN echo "you can find the serial and parallel versions of lamps in this home directory"
+#./lammps_mpi -in mylammps/examples/DIFFUSE/in.msd.2d

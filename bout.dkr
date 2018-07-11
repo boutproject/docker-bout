@@ -21,7 +21,7 @@ RUN yum install -y emacs-nox vim git
 RUN yum -y install python-pip python-devel
 RUN python -m pip install --upgrade pip
 RUN python -m pip install setuptools --upgrade
-RUN python -m pip install numpy scipy netcdf4
+RUN python -m pip install numpy scipy netcdf4 matplotlib
 #RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm
 #RUN yum -y install python36u python36u-pip
 RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm
@@ -30,7 +30,7 @@ RUN ln -s /usr/bin/python3.6 /usr/bin/python3
 RUN yum install -y python36u-devel python36u-pip
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install setuptools --upgrade
-RUN python3 -m pip install numpy scipy netcdf4
+RUN python3 -m pip install numpy scipy netcdf4 matplotlib
 
 
 # ----------------------------------------------------------------
@@ -91,32 +91,32 @@ RUN make install
 #####################
 # Install PETSC
 WORKDIR /
-RUN wget http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-3.5.4.tar.gz
-RUN tar -xvzf petsc-3.5.4.tar.gz
-WORKDIR /petsc-3.5.4/
+RUN wget http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-3.6.4.tar.gz
+RUN tar -xvzf petsc-3.6.4.tar.gz
+WORKDIR /petsc-3.6.4/
 RUN ./configure --with-clanguage=cxx --with-mpi=yes --with-precision=double --with-scalar-type=real \
 --download-mumps=1 --download-scalapack=1 --download-blacs=1 --download-fblas-lapack=1 \
 --download-parmetis=1 --download-ptscotch=1 --download-metis=1 --with-shared-libraries=0 --with-sundials-dir=/usr/local \
 --download-pnetcdf=1
-RUN make -f /petsc-3.5.4/makefile all
-RUN make -f /petsc-3.5.4/makefile PETSC_DIR=/petsc-3.5.4 PETSC_ARCH=arch-linux2-cxx-debug test
-ENV PATH="/petsc-3.5.4/arch-linux2-cxx-debug/include/:${PATH}"
-ENV PETSC_DIR=/petsc-3.5.4/
+RUN make -f /petsc-3.6.4/makefile all
+RUN make -f /petsc-3.6.4/makefile PETSC_DIR=/petsc-3.6.4 PETSC_ARCH=arch-linux2-cxx-debug test
+ENV PATH="/petsc-3.6.4/arch-linux2-cxx-debug/include/:${PATH}"
+ENV PETSC_DIR=/petsc-3.6.4/
 ENV PETSC_ARCH=arch-linux2-cxx-debug
-RUN ln -s /petsc-3.5.4/arch-linux2-cxx-debug/include/* /usr/include/
-RUN ln -s /petsc-3.5.4/arch-linux2-cxx-debug/lib/*a /usr/lib/
-RUN ln -s /petsc-3.5.4/arch-linux2-cxx-debug/lib/modules/* /usr/lib/modules/
+RUN ln -s /petsc-3.6.4/arch-linux2-cxx-debug/include/* /usr/include/
+RUN ln -s /petsc-3.6.4/arch-linux2-cxx-debug/lib/*a /usr/lib/
+RUN ln -s /petsc-3.6.4/arch-linux2-cxx-debug/lib/modules/* /usr/lib/modules/
 
 
 #####################
 # Install SLEPC
 WORKDIR /
-RUN wget http://slepc.upv.es/download/distrib/slepc-3.5.4.tar.gz
-RUN tar xzf slepc-3.5.4.tar.gz
-ENV SLEPC_DIR=/slepc-3.5.4
-WORKDIR /slepc-3.5.4/
+RUN wget http://slepc.upv.es/download/distrib/slepc-3.6.3.tar.gz
+RUN tar xzf slepc-3.6.3.tar.gz
+ENV SLEPC_DIR=/slepc-3.6.3
+WORKDIR /slepc-3.6.3/
 RUN ./configure
-RUN make SLEPC_DIR=$PWD PETSC_DIR=/petsc-3.5.4/ PETSC_ARCH=arch-linux2-cxx-debug
+RUN make SLEPC_DIR=$PWD PETSC_DIR=/petsc-3.6.4/ PETSC_ARCH=arch-linux2-cxx-debug
 RUN make test
 
 
@@ -172,7 +172,7 @@ ENV PATH="/usr/local/include/:${PATH}"
 # ----------------------------------------------------------------
 # configure and build BOUT++ source code
 WORKDIR /BOUT-dev/
-RUN ./configure --with-petsc PETSC_DIR=/petsc-3.5.4 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/local/ --with-fftw --with-netcdf --enable-openmp --with-mumps --with-cvode --with-arkode # --with-slepc --with-pnetcdf
+RUN ./configure --with-petsc PETSC_DIR=/petsc-3.6.4 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/local/ --with-fftw --with-netcdf --enable-openmp --with-mumps --with-cvode --with-arkode # --with-slepc --with-pnetcdf
 #CPPFLAGS=-I/petsc-3.4.5/arch-linux2-cxx-debug/include LDFLAGS="-Wl,-rpath,/petsc-3.4.5/arch-linux2-cxx-debug/lib -L/petsc-3.4.5/arch-linux2-cxx-debug/lib"  LIBS="-lcmumps -ldmumps -lsmumps -lzmumps -lmumps_common -lpord -lsundials_cvode -lsundials_nvecserial -lsundials_nvecparallel"
 ENV PYTHONPATH=/BOUT-dev/tools/pylib/:$PYTHONPATH
 RUN make
@@ -180,8 +180,19 @@ RUN git submodule update --init --recursive
 RUN make check-unit-tests
 RUN make check-mms-tests
 RUN ln -s /BOUT-dev /home/
-WORKDIR /home/
 
+#####################
+# Install latex and doxygen for documentation building
+RUN yum install -y latexmk texlive
+RUN python3 -m pip install sphinx
+RUN python -m pip install sphinx
+#WORKDIR /BOUT-dev/manual/
+#RUN make
+
+#####################
+# Make common folder for moving data to/from host
+WORKDIR /home/
+RUN mkdir bout-img-shared
 
 
 # ----------------------------------------------------------------

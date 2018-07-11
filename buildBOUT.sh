@@ -12,7 +12,7 @@ read DOCKER_NAME
 HOSTNAME=`hostname -s`
 DOCKERFILE="$DOCKER_NAME.dkr"
 IMAGE_NAME="$DOCKER_NAME-img"
-SCR_NAME="/scr_eris/jleddy/projects/BOUT/dockerize/"
+SCR_NAME="/scr_eris/jleddy/projects/BOUT-docker/"
 # CONTRIB_DIR="/opt/contrib"
 #
 # if [ ! -d ./contrib ]; then
@@ -35,9 +35,9 @@ echo ""
 # The last argument sets the PATH to be used to find files in the
 #   'Dockerfile' and to resolve the '-f' option
 #
-runcmd "docker build -t '$IMAGE_NAME' -f $DOCKERFILE $SCR_NAME"
+runcmd "sudo docker build -t '$IMAGE_NAME' -f $DOCKERFILE $SCR_NAME"
 
 echo ""
 echo "docker images:"
 echo ""
-docker images
+sudo docker images

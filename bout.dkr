@@ -37,9 +37,6 @@ RUN python3 -m pip install numpy scipy netcdf4 matplotlib
 # Get BOUT++ from the github repo (most recent patch)
 # ----------------------------------------------------------------
 # retrieve from git repo
-RUN git clone git://github.com/boutproject/BOUT-dev.git BOUT-dev
-WORKDIR /BOUT-dev/
-RUN git pull
 # build the documentation
 #RUN make -C /mylammps/doc html
 #RUN yum install -y htmldoc
@@ -167,39 +164,40 @@ ENV PATH="/usr/local/include/:${PATH}"
 #RUN make
 #RUN make install
 
+#####################
+# Install latex and doxygen for documentation building
+RUN yum install -y latexmk texlive texlive-fncychap texlive-titlesec texlive-tabulary
+RUN python3 -m pip install sphinx recommonmark
+RUN python -m pip install sphinx recommonmark
+
 # ----------------------------------------------------------------
 # Build and install BOUT++
 # ----------------------------------------------------------------
 # configure and build BOUT++ source code
-WORKDIR /BOUT-dev/
+RUN yum install sudo -y
+RUN useradd -ms /bin/bash boutuser
+RUN echo -e "boutforever\nboutforever" | passwd boutuser
+RUN usermod -aG wheel boutuser
+USER boutuser
+WORKDIR /home/boutuser
+RUN git clone git://github.com/boutproject/BOUT-dev.git BOUT-dev
+RUN chown boutuser /home/boutuser/BOUT-dev
+WORKDIR /home/boutuser/BOUT-dev
 RUN ./configure --with-petsc PETSC_DIR=/petsc-3.6.4 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/local/ --with-fftw --with-netcdf --enable-openmp --with-mumps --with-cvode --with-arkode # --with-slepc --with-pnetcdf
 #CPPFLAGS=-I/petsc-3.4.5/arch-linux2-cxx-debug/include LDFLAGS="-Wl,-rpath,/petsc-3.4.5/arch-linux2-cxx-debug/lib -L/petsc-3.4.5/arch-linux2-cxx-debug/lib"  LIBS="-lcmumps -ldmumps -lsmumps -lzmumps -lmumps_common -lpord -lsundials_cvode -lsundials_nvecserial -lsundials_nvecparallel"
-ENV PYTHONPATH=/BOUT-dev/tools/pylib/:$PYTHONPATH
+ENV PYTHONPATH=/home/boutuser/BOUT-dev/tools/pylib/:$PYTHONPATH
 RUN make
 RUN git submodule update --init --recursive
 RUN make check-unit-tests
 RUN make check-mms-tests
-RUN ln -s /BOUT-dev /home/
 
 #####################
-# Install latex and doxygen for documentation building
-RUN yum install -y latexmk texlive
-RUN python3 -m pip install sphinx
-RUN python -m pip install sphinx
-#WORKDIR /BOUT-dev/manual/
-#RUN make
+# Build documentation
+WORKDIR /home/boutuser/BOUT-dev/manual/
+COPY tabulary.sty ./tabulary.sty
+RUN make html
 
 #####################
 # Make common folder for moving data to/from host
-WORKDIR /home/
+WORKDIR /home/boutuser
 RUN mkdir bout-img-shared
-
-
-# ----------------------------------------------------------------
-# Print out some user information
-# ----------------------------------------------------------------
-#RUN echo "Welcome to the BOUT++ container!"
-#RUN echo "--------------------------------"
-#RUN echo ""
-#RUN echo "you can find the serial and parallel versions of lamps in this home directory"
-#./lammps_mpi -in mylammps/examples/DIFFUSE/in.msd.2d

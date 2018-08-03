@@ -1,45 +1,27 @@
-**Edit a file, create a new file, and clone from Bitbucket in under 2 minutes**
+This repository is for creating docker containers for BOUT-dev master and next branches. (found here: https://github.com/boutproject/BOUT-dev)
 
-When you're done, you can delete the content in this README and update the file with details for others getting started with your repository.
+bout.dkr 				- docker script for building BOUT-dev master
+bout-next.dkr  			- docker script for building BOUt-dev next
+buildBOUT.sh			- script to build a container from a docker script
+start-interactive.sh  	- script for starting an interactive docker container
+start-BOUT.sh			- script for starting bout container with some detailed options (see below)
 
-*We recommend that you open this README in another tab as you perform the tasks below. You can [watch our video](https://youtu.be/0ocf7u76WSo) for a full demo of all the steps in this tutorial. Open the video in a new tab to avoid leaving Bitbucket.*
 
----
+To build these containers you must first install docker and then set it running (instructions here: https://docs.docker.com/install/linux/docker-ce/centos/)
+Once docker is running, you can navigate into this repo directory and type:
+./buildBOUT.sh
 
-## Edit a file
+This will ask you the name of the docker script file you'd like to build so either "bout" or "bout-next"
 
-You’ll start by editing this README file to learn how to edit a file in Bitbucket.
+It may take a while to build, you will need an internet connection, and you will need sudo privelages.  If your docker commands
+function without sudo privelages, then you will need to modify the buildBOUT.sh script by removing all the sudo commands.
 
-1. Click **Source** on the left side.
-2. Click the README.md link from the list of files.
-3. Click the **Edit** button.
-4. Delete the following text: *Delete this line to make a change to the README from Bitbucket.*
-5. After making your change, click **Commit** and then **Commit** again in the dialog. The commit page will open and you’ll see the change you just made.
-6. Go back to the **Source** page.
+When complete, a list of your currently loaded docker images will be displayed.  To open an image as a container you can type:
+./start-interactive.sh
+it will prompt you for the name of the image (which should either be bout-img or bout-next-img depending on which you built)
 
----
+You will find yourself at the command line logged in to the container as boutuser.  You should see the BOUT++ installation and should be able to build
+and run examples.
 
-## Create a file
-
-Next, you’ll add a new file to this repository.
-
-1. Click the **New file** button at the top of the **Source** page.
-2. Give the file a filename of **contributors.txt**.
-3. Enter your name in the empty file space.
-4. Click **Commit** and then **Commit** again in the dialog.
-5. Go back to the **Source** page.
-
-Before you move on, go ahead and explore the repository. You've already seen the **Source** page, but check out the **Commits**, **Branches**, and **Settings** pages.
-
----
-
-## Clone a repository
-
-Use these steps to clone from SourceTree, our client for using the repository command-line free. Cloning allows you to work on your files locally. If you don't yet have SourceTree, [download and install first](https://www.sourcetreeapp.com/). If you prefer to clone from the command line, see [Clone a repository](https://confluence.atlassian.com/x/4whODQ).
-
-1. You’ll see the clone button under the **Source** heading. Click that button.
-2. Now click **Check out in SourceTree**. You may need to create a SourceTree account or log in.
-3. When you see the **Clone New** dialog in SourceTree, update the destination path and name if you’d like to and then click **Clone**.
-4. Open the directory you just created to see your repository’s files.
-
-Now that you're more familiar with your Bitbucket repository, go ahead and add a new file locally. You can [push your change back to Bitbucket with SourceTree](https://confluence.atlassian.com/x/iqyBMg), or you can [add, commit,](https://confluence.atlassian.com/x/8QhODQ) and [push from the command line](https://confluence.atlassian.com/x/NQ0zDQ).
+Alternatively, you can use the start-BOUT.sh script which will prompt you to create a common data folder so files can be shared between your machine and the container. This script
+will also prompt you regarding the number of processors you desire.

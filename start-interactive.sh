@@ -1,5 +1,5 @@
 #!/bin/bash
-source  ./commonAWSFuncs.sh ; echo ""
+source  ./shellfunc.sh ; echo ""
 
 echo "---------------------------------------"
 echo "    Start interactive session inside   "

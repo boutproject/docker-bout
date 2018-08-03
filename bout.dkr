@@ -1,5 +1,5 @@
 # ================================================================================
-#             Dockerfile to setup build environment for LAMMPS build
+#             Dockerfile to setup build environment for BOUT-dev build
 # ================================================================================
 FROM centos:centos7
 MAINTAINER Jarrod Leddy "jleddy@txcorp.com"

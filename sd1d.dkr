@@ -1,0 +1,18 @@
+# ================================================================================
+#             Dockerfile to setup SD1D
+#
+# Build example: sudo docker build -t boutproject/sd1d:049f085 -f sd1d.dkr .
+# 
+# ================================================================================
+
+
+FROM boutproject/bout-next:9f4c663-sundials-ubuntu
+
+MAINTAINER Ben Dudson "benjamin.dudson@york.ac.uk"
+
+USER boutuser
+WORKDIR /home/boutuser
+
+RUN git clone https://github.com/boutproject/SD1D.git \
+ && cd SD1D \
+ && make BOUT_TOP=/home/boutuser/BOUT-next

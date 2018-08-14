@@ -1,0 +1,18 @@
+# ================================================================================
+#             Dockerfile to setup Hermes with BOUT++ 3.1
+#
+# Build example: sudo docker build -t boutproject/hermes:1849a42 -f hermes.dkr .
+# 
+# ================================================================================
+
+
+FROM boutproject/release:3.1
+
+MAINTAINER Ben Dudson "benjamin.dudson@york.ac.uk"
+
+USER boutuser
+WORKDIR /home/boutuser
+
+RUN git clone https://github.com/boutproject/hermes.git \
+ && cd hermes \
+ && make BOUT_TOP=/home/boutuser/BOUT-dev-3.1

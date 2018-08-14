@@ -1,0 +1,91 @@
+# ================================================================================
+#             Dockerfile to setup build environment for BOUT-next build
+#
+# Build example:
+#  sudo docker build -t boutproject/bout-next:9f4c663-sundials-ubuntu -f bout-next-sundials-ubuntu.dkr .
+#
+# 
+# Run example:
+#
+# $ mkdir shared
+# $ sudo docker run --rm -it -v "$(pwd)"/shared:/home/boutuser/bout-img-shared boutproject/bout-next:9f4c663-sundials-ubuntu
+#
+# sudo docker run --rm -it -e DISPLAY -v $HOME/.Xauthority:/home/boutuser/.Xauthority boutproject/bout-next:9f4c663-sundials-ubuntu
+# 
+# ================================================================================
+
+FROM ubuntu:bionic
+MAINTAINER Ben Dudson "benjamin.dudson@york.ac.uk"
+
+# ----------------------------------------------------------------
+# Convenient network/system tools, python, dependencies
+# ----------------------------------------------------------------
+
+RUN apt-get update \
+ && export DEBIAN_FRONTEND=noninteractive \
+ && apt-get -y install emacs-nox vim nano \
+     git make cmake m4 wget sudo \
+     g++ gfortran gcc mpich \
+     libmpich-dev libfftw3-dev libblas-dev liblapack-dev libhdf5-dev libnetcdf-c++4-dev \
+     python3 python3-numpy python3-netcdf4 python3-scipy python3-matplotlib ipython3 \
+ && sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.6 1 \
+ && sudo update-alternatives --install /usr/bin/ipython ipython /usr/bin/ipython3 1 \
+ && apt-get clean
+
+# ----------------------------------------------------------------
+# Get BOUT++ dependencies
+# ----------------------------------------------------------------
+
+#####################
+# Install SUNDIALS
+
+WORKDIR /
+RUN wget https://computation.llnl.gov/projects/sundials/download/sundials-2.7.0.tar.gz \
+ && tar -xvzf sundials-2.7.0.tar.gz \
+ && rm sundials-2.7.0.tar.gz \
+ && cd sundials-2.7.0 \
+ && mkdir build \
+ && mkdir -p /usr/examples \
+ && cd build/ \
+ && cmake \
+  -DCMAKE_INSTALL_PREFIX=/usr/ \
+  -DEXAMPLES_INSTALL_PATH=/usr/examples \
+  -DCMAKE_LINKER=/usr/lib \
+  -DLAPACK_ENABLE=ON \
+  -DOPENMP_ENABLE=ON \
+  -DMPI_ENABLE=ON \
+  ../  \
+ && make \
+ && make install \
+ && cd / \
+ && rm -r sundials-2.7.0
+
+# ----------------------------------------------------------------
+# Build and install BOUT++
+# ----------------------------------------------------------------
+
+# configure and build BOUT++ source code
+RUN useradd -ms /bin/bash boutuser \
+ && echo 'boutuser:boutforever' | chpasswd \
+ && usermod -aG sudo boutuser
+
+USER boutuser
+WORKDIR /home/boutuser
+
+#RUN git clone -b next --depth 1 git://github.com/boutproject/BOUT-dev.git BOUT-next \
+RUN git clone -b sundials-extra-libs --depth 1 git://github.com/boutproject/BOUT-dev.git BOUT-next \
+ && chown boutuser /home/boutuser/BOUT-next
+
+WORKDIR /home/boutuser/BOUT-next
+
+RUN ./configure --with-sundials=/usr/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode --with-lapack LIBS="-llapack -lblas" SUNDIALS_EXTRA_LIBS="-llapack" \
+ && make \
+ && make clean-remove-object-files
+
+ENV PYTHONPATH=/home/boutuser/BOUT-next/tools/pylib/:$PYTHONPATH
+ENV PYTHONIOENCODING=utf-8
+
+#####################
+# Make common folder for moving data to/from host
+WORKDIR /home/boutuser
+RUN mkdir bout-img-shared

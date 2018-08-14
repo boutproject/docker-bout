@@ -1,203 +1,165 @@
 # ================================================================================
 #             Dockerfile to setup build environment for BOUT-next build
+#
+# Build example: sudo docker build -t boutproject/bout-next:9f4c663 -f bout-next.dkr ..
+# 
 # ================================================================================
 FROM centos:centos7
 MAINTAINER Jarrod Leddy "jleddy@txcorp.com"
 
-
 # ----------------------------------------------------------------
-# Convenient network/system tools
+# Convenient network/system tools, python, dependencies
 # ----------------------------------------------------------------
-RUN yum -y groupinstall development
-RUN yum install -y epel-release
-RUN yum install -y emacs-nox vim git
-#RUN yum install -y texlive okular
-#RUN yum install -y perl-devel prelink gcc-gfortran tcsh openssh-clients which
-
+RUN yum install -y emacs-nox vim nano git gfortran g++ gcc \
+ mpich fftw-devel hdf5 blas-devel lapack-devel cmake zlib-devel hdf5-devel sudo \
+ && yum clean all \
+ && rm -rf /var/cache/yum
 
 # ----------------------------------------------------------------
 # Python
 # ----------------------------------------------------------------
-RUN yum -y install python-pip python-devel
-RUN python -m pip install --upgrade pip
-RUN python -m pip install setuptools --upgrade
-RUN python -m pip install numpy scipy netcdf4 matplotlib
-#RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm
-#RUN yum -y install python36u python36u-pip
-RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm
-RUN yum install -y python36u
-RUN ln -s /usr/bin/python3.6 /usr/bin/python3
-RUN yum install -y python36u-devel python36u-pip
-RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install setuptools --upgrade
-RUN python3 -m pip install numpy scipy netcdf4 matplotlib
-
-
-# ----------------------------------------------------------------
-# Get BOUT++ from the github repo (most recent patch)
-# ----------------------------------------------------------------
-# retrieve from git repo
-# build the documentation
-#RUN make -C /mylammps/doc html
-#RUN yum install -y htmldoc
-#RUN make -C /mylammps/doc pdf
-
+RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm \
+    && yum install -y python36u python36u-pip python36u-devel \
+    && ln -s /usr/bin/python3.6 /usr/bin/python3 \
+    && python3 -m pip install numpy scipy netcdf4 matplotlib
 
 # ----------------------------------------------------------------
 # Get BOUT++ dependencies
 # ----------------------------------------------------------------
+
 #####################
 # Install mpich
 WORKDIR /
-RUN yum install wget -y
-#ENV PATH="/mpich-install/bin:${PATH}"
-RUN wget https://www.mpich.org/static/tarballs/3.2.1/mpich-3.2.1.tar.gz
-RUN tar -xzvf mpich-3.2.1.tar.gz
-WORKDIR /mpich-3.2.1/
-RUN ./configure
-RUN make
-RUN make install
-
-
-#####################
-# Install FFTW, BLAS, LAPACK and CMAKE
-RUN yum install -y fftw-devel hdf5 blas-devel lapack-devel
-RUN yum install -y cmake #scorep
-
+RUN yum install -y wget make file gcc-c++ \
+ && wget https://www.mpich.org/static/tarballs/3.2.1/mpich-3.2.1.tar.gz \
+ && tar -xzvf mpich-3.2.1.tar.gz \
+ && rm mpich-3.2.1.tar.gz \
+ && cd mpich-3.2.1 \
+ && ./configure \
+ && make \
+ && make install \
+ && cd / \
+ && rm -r mpich-3.2.1
 
 #####################
 # Install SUNDIALS
+
 WORKDIR /
-RUN wget https://computation.llnl.gov/projects/sundials/download/sundials-2.7.0.tar.gz
-RUN tar -xvzf sundials-2.7.0.tar.gz
-WORKDIR /sundials-2.7.0/
-RUN mkdir build
-RUN mkdir -p /usr/examples
-WORKDIR /sundials-2.7.0/build/
-RUN cmake \
+RUN wget https://computation.llnl.gov/projects/sundials/download/sundials-2.7.0.tar.gz \
+ && tar -xvzf sundials-2.7.0.tar.gz \
+ && rm sundials-2.7.0.tar.gz \
+ && cd sundials-2.7.0 \
+ && mkdir build \
+ && mkdir -p /usr/examples \
+ && cd build/ \
+ && cmake \
   -DCMAKE_INSTALL_PREFIX=/usr/ \
   -DEXAMPLES_INSTALL_PATH=/usr/examples \
   -DCMAKE_LINKER=/usr/lib \
   -DLAPACK_ENABLE=ON \
   -DOPENMP_ENABLE=ON \
   -DMPI_ENABLE=ON \
-  ../
-RUN make
-RUN make install
+  ../  \
+ && make \
+ && make install \
+ && cd / \
+ && rm -r sundials-2.7.0
 
 #####################
 # Install PETSC
+
 WORKDIR /
-RUN wget http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-3.9.3.tar.gz
-RUN tar -xvzf petsc-3.9.3.tar.gz
-WORKDIR /petsc-3.9.3/
-RUN ./configure --with-clanguage=cxx --with-mpi=yes --with-precision=double --with-scalar-type=real \
+RUN yum install -y bison flex \
+ && wget http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-lite-3.9.3.tar.gz \
+ && tar -xvzf petsc-lite-3.9.3.tar.gz \
+ && cd petsc-3.9.3/ \
+ && ./configure --with-clanguage=cxx --with-mpi=yes --with-precision=double --with-scalar-type=real \
 --download-mumps=1 --download-scalapack=1 --download-blacs=1 --download-fblas-lapack=1 \
 --download-parmetis=1 --download-ptscotch=1 --download-metis=1 --with-shared-libraries=0 --with-sundials-dir=/usr \
---download-pnetcdf=1
-RUN make -f /petsc-3.9.3/makefile all
-RUN make -f /petsc-3.9.3/makefile PETSC_DIR=/petsc-3.9.3 PETSC_ARCH=arch-linux2-cxx-debug test
-ENV PATH="/petsc-3.9.3/arch-linux2-cxx-debug/include/:${PATH}"
+ && make -f /petsc-3.9.3/makefile all \
+ && make -f /petsc-3.9.3/makefile PETSC_DIR=/petsc-3.9.3 PETSC_ARCH=arch-linux2-cxx-debug test \
+ && ln -s /petsc-3.9.3/arch-linux2-cxx-debug/include/* /usr/include/ \
+ && ln -s /petsc-3.9.3/arch-linux2-cxx-debug/lib/*a /usr/lib/ \
+ && ln -s /petsc-3.9.3/arch-linux2-cxx-debug/lib/modules/* /usr/lib/modules/ \
+ && cd /petsc-3.9.3/arch-linux2-cxx-debug/ \
+ && rm -r externalpackages obj \
+ && cd /petsc-3.9.3/ \
+ && rm -r src
+
 ENV PETSC_DIR=/petsc-3.9.3/
 ENV PETSC_ARCH=arch-linux2-cxx-debug
-RUN ln -s /petsc-3.9.3/arch-linux2-cxx-debug/include/* /usr/include/
-RUN ln -s /petsc-3.9.3/arch-linux2-cxx-debug/lib/*a /usr/lib/
-RUN ln -s /petsc-3.9.3/arch-linux2-cxx-debug/lib/modules/* /usr/lib/modules/
-
 
 #####################
 # Install SLEPC
 WORKDIR /
-RUN wget http://slepc.upv.es/download/distrib/slepc-3.9.2.tar.gz
-RUN tar xzf slepc-3.9.2.tar.gz
+RUN wget http://slepc.upv.es/download/distrib/slepc-3.9.2.tar.gz \
+ && tar xzf slepc-3.9.2.tar.gz \
+ && rm slepc-3.9.2.tar.gz \
+ && cd slepc-3.9.2/ \
+ && ./configure \
+ && make SLEPC_DIR=$PWD PETSC_DIR=/petsc-3.9.3/ PETSC_ARCH=arch-linux2-cxx-debug \
+ && export SLEPC_DIR=/slepc-3.9.2 \
+ && make test \
+ && rm -r /slepc-3.9.2/arch-linux2-cxx-debug/obj \
+ && rm -r /slepc-3.9.2/src
+ 
 ENV SLEPC_DIR=/slepc-3.9.2
-WORKDIR /slepc-3.9.2/
-RUN ./configure
-RUN make SLEPC_DIR=$PWD PETSC_DIR=/petsc-3.9.3/ PETSC_ARCH=arch-linux2-cxx-debug
-RUN make test
-
 
 #####################
 # Install NETCDF
 WORKDIR /
-RUN yum install -y zlib-devel hdf5-devel
-RUN wget https://www.unidata.ucar.edu/downloads/netcdf/ftp/netcdf-4.6.1.tar.gz
-RUN tar -xzvf netcdf-4.6.1.tar.gz
-WORKDIR /netcdf-4.6.1/
-RUN ./configure --prefix=/usr/local --disable-dap --enable-parallel
-RUN make
-RUN make install
-
+RUN yum install -y zlib-devel hdf5-devel \
+ && wget https://www.unidata.ucar.edu/downloads/netcdf/ftp/netcdf-4.6.1.tar.gz \
+ && tar -xzvf netcdf-4.6.1.tar.gz \
+ && rm netcdf-4.6.1.tar.gz \
+ && cd /netcdf-4.6.1/ \
+ && ./configure --prefix=/usr/local --disable-dap --enable-parallel \
+ && make \
+ && make install \
+ && cd / \
+ && rm -r netcdf-4.6.1
 
 #####################
 # Install NETCDF-cxx
 WORKDIR /
-RUN wget https://www.unidata.ucar.edu/downloads/netcdf/ftp/netcdf-cxx4-4.3.0.tar.gz
-RUN tar -xzvf netcdf-cxx4-4.3.0.tar.gz
-WORKDIR /netcdf-cxx4-4.3.0/
-RUN ./configure --prefix=/usr/local
-RUN make
-RUN make install
-WORKDIR /
-ENV PATH="/usr/local/include/:${PATH}"
 
-
-#####################
-# Install PNETCDF
-#WORKDIR /
-#RUN wget http://cucis.ece.northwestern.edu/projects/PnetCDF/Release/parallel-netcdf-1.6.1.tar.gz #http://cucis.ece.northwestern.edu/projects/PnetCDF/Release/parallel-netcdf-1.8.1.tar.gz #http://cucis.ece.northwestern.edu/projects/PnetCDF/Release/parallel-netcdf-1.10.0.tar.gz
-#RUN tar -xvzf parallel-netcdf-1.6.1.tar.gz
-#WORKDIR /parallel-netcdf-1.6.1/
-#RUN ./configure
-#RUN make
-#RUN make install
-
-
-#####################
-# Install SCOREP
-#WORKDIR /
-#RUN yum install -y scorep
-#RUN wget http://www.vi-hps.org/upload/packages/scorep/scorep-4.0.tar.gz
-#RUN tar xzvf scorep-4.0.tar.gz
-#WORKDIR /scorep-4.0/
-#RUN ./configure
-#RUN make
-#RUN make install
-
-#####################
-# Install latex and doxygen for documentation building
-RUN yum install -y latexmk texlive texlive-fncychap texlive-titlesec texlive-tabulary
-RUN python3 -m pip install sphinx recommonmark
-RUN python -m pip install sphinx recommonmark
+RUN wget https://www.unidata.ucar.edu/downloads/netcdf/ftp/netcdf-cxx4-4.3.0.tar.gz \
+ && tar -xzvf netcdf-cxx4-4.3.0.tar.gz \
+ && rm netcdf-cxx4-4.3.0.tar.gz \
+ && cd netcdf-cxx4-4.3.0/ \
+ && ./configure --prefix=/usr/local \
+ && make \
+ && make install \
+ && cd / \
+ && rm -r netcdf-cxx4-4.3.0
 
 # ----------------------------------------------------------------
 # Build and install BOUT++
 # ----------------------------------------------------------------
 # configure and build BOUT++ source code
-RUN yum install sudo -y
-RUN useradd -ms /bin/bash boutuser
-RUN echo -e "boutforever\nboutforever" | passwd boutuser
-RUN usermod -aG wheel boutuser
+RUN useradd -ms /bin/bash boutuser \
+ && echo -e "boutforever\nboutforever" | passwd boutuser \
+ && usermod -aG wheel boutuser
+
 USER boutuser
 WORKDIR /home/boutuser
-RUN git clone git://github.com/boutproject/BOUT-dev.git BOUT-next
-RUN chown boutuser /home/boutuser/BOUT-next
+
+RUN git clone -b next --depth 1 git://github.com/boutproject/BOUT-dev.git BOUT-next \
+ && chown boutuser /home/boutuser/BOUT-next
+
 WORKDIR /home/boutuser/BOUT-next
-RUN git checkout next
-RUN ./configure --with-petsc PETSC_DIR=/petsc-3.9.3 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/usr/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode --with-slepc --with-lapack LIBS="-llapack -lblas"
-#CPPFLAGS=-I/petsc-3.4.5/arch-linux2-cxx-debug/include LDFLAGS="-Wl,-rpath,/petsc-3.4.5/arch-linux2-cxx-debug/lib -L/petsc-3.4.5/arch-linux2-cxx-debug/lib"  LIBS="-lcmumps -ldmumps -lsmumps -lzmumps -lmumps_common -lpord -lsundials_cvode -lsundials_nvecserial -lsundials_nvecparallel"
+
+RUN ./configure --with-petsc PETSC_DIR=/petsc-3.9.3 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/usr/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode --with-slepc --with-lapack LIBS="-llapack -lblas" \
+ && make \
+ && make clean-remove-object-files
+
 ENV PYTHONPATH=/home/boutuser/BOUT-next/tools/pylib/:$PYTHONPATH
 ENV PYTHONIOENCODING=utf-8
-RUN make
-RUN git submodule update --init --recursive
-RUN make check-unit-tests
-#RUN make check-mms-tests-all
 
-#####################
-# Build documentation
-WORKDIR /home/boutuser/BOUT-next/manual/
-COPY tabulary.sty ./tabulary.sty
-RUN make html
+RUN git submodule update --init --recursive \
+ && make check-unit-tests \
+ && make clean-unit-tests \
+ && rm tests/unit/serial_tests
 
 #####################
 # Make common folder for moving data to/from host

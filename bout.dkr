@@ -1,5 +1,7 @@
 # ================================================================================
 #             Dockerfile to setup build environment for BOUT-dev build
+#
+# 
 # ================================================================================
 FROM centos:centos7
 MAINTAINER Jarrod Leddy "jleddy@txcorp.com"
@@ -21,7 +23,8 @@ RUN yum install -y emacs-nox vim git
 RUN yum -y install python-pip python-devel
 RUN python -m pip install --upgrade pip
 RUN python -m pip install setuptools --upgrade
-RUN python -m pip install numpy scipy netcdf4 matplotlib
+RUN pip install --upgrade cython
+RUN python -m pip install numpy scipy netcdf4 matplotlib future
 #RUN yum -y install https://centos7.iuscommunity.org/ius-release.rpm
 #RUN yum -y install python36u python36u-pip
 RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm
@@ -29,8 +32,9 @@ RUN yum install -y python36u
 RUN ln -s /usr/bin/python3.6 /usr/bin/python3
 RUN yum install -y python36u-devel python36u-pip
 RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install --upgrade cython
 RUN python3 -m pip install setuptools --upgrade
-RUN python3 -m pip install numpy scipy netcdf4 matplotlib
+RUN python3 -m pip install numpy scipy netcdf4 matplotlib ipython
 
 
 # ----------------------------------------------------------------
@@ -183,18 +187,17 @@ WORKDIR /home/boutuser
 RUN git clone git://github.com/boutproject/BOUT-dev.git BOUT-dev
 RUN chown boutuser /home/boutuser/BOUT-dev
 WORKDIR /home/boutuser/BOUT-dev
-RUN ./configure --with-petsc PETSC_DIR=/petsc-3.6.4 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/local/ --with-fftw --with-netcdf --enable-openmp --with-mumps --with-cvode --with-arkode # --with-slepc --with-pnetcdf
-#CPPFLAGS=-I/petsc-3.4.5/arch-linux2-cxx-debug/include LDFLAGS="-Wl,-rpath,/petsc-3.4.5/arch-linux2-cxx-debug/lib -L/petsc-3.4.5/arch-linux2-cxx-debug/lib"  LIBS="-lcmumps -ldmumps -lsmumps -lzmumps -lmumps_common -lpord -lsundials_cvode -lsundials_nvecserial -lsundials_nvecparallel"
+RUN ./configure --with-petsc PETSC_DIR=/petsc-3.6.4 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/usr/local/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode SUNDIALS_EXTRA_LIBS="-llapack" 
 ENV PYTHONPATH=/home/boutuser/BOUT-dev/tools/pylib/:$PYTHONPATH
 RUN make
 RUN git submodule update --init --recursive
-RUN make check-unit-tests
-RUN make check-mms-tests
+#RUN make check-unit-tests
+#RUN make check-mms-tests
 
 #####################
 # Build documentation
 WORKDIR /home/boutuser/BOUT-dev/manual/
-COPY tabulary.sty ./tabulary.sty
+#COPY tabulary.sty ./tabulary.sty
 RUN make html
 
 #####################

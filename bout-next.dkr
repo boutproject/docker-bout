@@ -1,8 +1,8 @@
 # ================================================================================
 #             Dockerfile to setup build environment for BOUT-next build
 #
-# Build example: sudo docker build -t boutproject/bout-next:9f4c663 -f bout-next.dkr ..
-# 
+# Build example: sudo docker build -t boutproject/bout-next:a4f453c -f bout-next.dkr .
+#  
 # ================================================================================
 FROM centos:centos7
 MAINTAINER Jarrod Leddy "jleddy@txcorp.com"
@@ -21,7 +21,7 @@ RUN yum install -y emacs-nox vim nano git gfortran g++ gcc \
 RUN yum install -y https://centos7.iuscommunity.org/ius-release.rpm \
     && yum install -y python36u python36u-pip python36u-devel \
     && ln -s /usr/bin/python3.6 /usr/bin/python3 \
-    && python3 -m pip install numpy scipy netcdf4 matplotlib
+    && python3 -m pip install numpy scipy netcdf4 matplotlib 
 
 # ----------------------------------------------------------------
 # Get BOUT++ dependencies
@@ -35,7 +35,7 @@ RUN yum install -y wget make file gcc-c++ \
  && tar -xzvf mpich-3.2.1.tar.gz \
  && rm mpich-3.2.1.tar.gz \
  && cd mpich-3.2.1 \
- && ./configure \
+ && ./configure --enable-shared \
  && make \
  && make install \
  && cd / \
@@ -58,6 +58,7 @@ RUN wget https://computation.llnl.gov/projects/sundials/download/sundials-2.7.0.
   -DCMAKE_LINKER=/usr/lib \
   -DLAPACK_ENABLE=ON \
   -DOPENMP_ENABLE=ON \
+  -DBUILD_SHARED_LIBS=ON \
   -DMPI_ENABLE=ON \
   ../  \
  && make \
@@ -73,9 +74,9 @@ RUN yum install -y bison flex \
  && wget http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-lite-3.9.3.tar.gz \
  && tar -xvzf petsc-lite-3.9.3.tar.gz \
  && cd petsc-3.9.3/ \
- && ./configure --with-clanguage=cxx --with-mpi=yes --with-precision=double --with-scalar-type=real \
+ && ./configure --with-clanguage=cxx --with-mpi=yes --with-shared-libraries --with-precision=double --with-scalar-type=real \
 --download-mumps=1 --download-scalapack=1 --download-blacs=1 --download-fblas-lapack=1 \
---download-parmetis=1 --download-ptscotch=1 --download-metis=1 --with-shared-libraries=0 --with-sundials-dir=/usr \
+--download-parmetis=1 --download-ptscotch=1 --download-metis=1 --with-sundials-dir=/usr \
  && make -f /petsc-3.9.3/makefile all \
  && make -f /petsc-3.9.3/makefile PETSC_DIR=/petsc-3.9.3 PETSC_ARCH=arch-linux2-cxx-debug test \
  && ln -s /petsc-3.9.3/arch-linux2-cxx-debug/include/* /usr/include/ \
@@ -113,7 +114,7 @@ RUN yum install -y zlib-devel hdf5-devel \
  && tar -xzvf netcdf-4.6.1.tar.gz \
  && rm netcdf-4.6.1.tar.gz \
  && cd /netcdf-4.6.1/ \
- && ./configure --prefix=/usr/local --disable-dap --enable-parallel \
+ && ./configure --prefix=/usr/local --disable-dap --enable-parallel --enable-shared \
  && make \
  && make install \
  && cd / \
@@ -127,11 +128,16 @@ RUN wget https://www.unidata.ucar.edu/downloads/netcdf/ftp/netcdf-cxx4-4.3.0.tar
  && tar -xzvf netcdf-cxx4-4.3.0.tar.gz \
  && rm netcdf-cxx4-4.3.0.tar.gz \
  && cd netcdf-cxx4-4.3.0/ \
- && ./configure --prefix=/usr/local \
+ && ./configure --prefix=/usr/local --enable-shared \
  && make \
  && make install \
  && cd / \
  && rm -r netcdf-cxx4-4.3.0
+
+####################
+# Cython
+
+RUN python3 -m pip install cython ipython
 
 # ----------------------------------------------------------------
 # Build and install BOUT++
@@ -149,8 +155,9 @@ RUN git clone -b next --depth 1 git://github.com/boutproject/BOUT-dev.git BOUT-n
 
 WORKDIR /home/boutuser/BOUT-next
 
-RUN ./configure --with-petsc PETSC_DIR=/petsc-3.9.3 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/usr/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode --with-slepc --with-lapack LIBS="-llapack -lblas" \
+RUN ./configure --with-petsc PETSC_DIR=/petsc-3.9.3 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/usr/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode --with-slepc --with-lapack LIBS="-llapack -lblas" --localedir=$PWD/locale --enable-shared \
  && make \
+ && make python \
  && make clean-remove-object-files
 
 ENV PYTHONPATH=/home/boutuser/BOUT-next/tools/pylib/:$PYTHONPATH

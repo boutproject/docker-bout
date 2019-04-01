@@ -142,34 +142,19 @@ RUN python3 -m pip install cython ipython
 # ----------------------------------------------------------------
 # Build and install BOUT++
 # ----------------------------------------------------------------
-# configure and build BOUT++ source code
-RUN useradd -ms /bin/bash boutuser \
- && echo -e "boutforever\nboutforever" | passwd boutuser \
- && usermod -aG wheel boutuser
+WORKDIR /opt
+RUN git clone -b v4.2.2 --depth 1 git://github.com/boutproject/BOUT-dev.git BOUT-dev
 
-USER boutuser
-WORKDIR /home/boutuser
-
-RUN git clone -b master --depth 1 git://github.com/boutproject/BOUT-dev.git BOUT-dev \
- && chown boutuser /home/boutuser/BOUT-dev
-
-WORKDIR /home/boutuser/BOUT-dev
-
+WORKDIR /opt/BOUT-dev
 RUN ./configure --with-petsc PETSC_DIR=/petsc-3.9.3 PETSC_ARCH=arch-linux2-cxx-debug --with-sundials=/usr/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode --with-slepc --with-lapack LIBS="-llapack -lblas" --localedir=$PWD/locale --enable-shared \
  && make \
  && make python \
  && make clean-remove-object-files
 
-ENV PYTHONPATH=/home/boutuser/BOUT-dev/tools/pylib/:$PYTHONPATH
+ENV PYTHONPATH=/opt/BOUT-dev/tools/pylib/:$PYTHONPATH
 ENV PYTHONIOENCODING=utf-8
 
 RUN git submodule update --init --recursive \
  && make check-unit-tests \
  && make clean-unit-tests \
  && rm tests/unit/serial_tests
-
-#####################
-# Make common folder for moving data to/from host
-WORKDIR /home/boutuser
-RUN mkdir bout-img-shared
-

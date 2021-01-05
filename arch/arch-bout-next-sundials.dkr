@@ -1,0 +1,75 @@
+# ================================================================================
+#             Dockerfile to setup build environment for BOUT-next build
+#
+# Build example:
+#  sudo docker build -t boutproject/bout-next:4cee87c-sundials-arch -f arch-bout-next-sundials.dkr .
+# 
+# ================================================================================
+
+FROM archlinux/base
+MAINTAINER Ben Dudson "benjamin.dudson@york.ac.uk"
+
+# ----------------------------------------------------------------
+# Convenient network/system tools, python, dependencies
+# ----------------------------------------------------------------
+
+RUN pacman -Syu --noconfirm \
+ && pacman -Sy --noconfirm emacs-nox vim nano git gcc gcc-fortran \
+ fftw cblas lapack cmake sudo core/which gawk \
+ wget make file m4 hdf5 netcdf netcdf-cxx \
+ python-numpy python-scipy python-matplotlib ipython openmpi \
+ && pacman -Scc --noconfirm
+
+#####################
+# Install SUNDIALS
+
+WORKDIR /
+RUN wget https://computation.llnl.gov/projects/sundials/download/sundials-2.7.0.tar.gz \
+ && tar -xvzf sundials-2.7.0.tar.gz \
+ && rm sundials-2.7.0.tar.gz \
+ && cd sundials-2.7.0 \
+ && mkdir build \
+ && mkdir -p /usr/examples \
+ && cd build/ \
+ && cmake \
+  -DCMAKE_INSTALL_PREFIX=/usr/ \
+  -DEXAMPLES_INSTALL_PATH=/usr/examples \
+  -DCMAKE_LINKER=/usr/lib \
+  -DLAPACK_ENABLE=ON \
+  -DOPENMP_ENABLE=ON \
+  -DMPI_ENABLE=ON \
+  ../  \
+ && make \
+ && make install \
+ && cd / \
+ && rm -r sundials-2.7.0
+
+# ----------------------------------------------------------------
+# Build and install BOUT++
+# ----------------------------------------------------------------
+
+# configure and build BOUT++ source code
+RUN useradd -ms /bin/bash boutuser \
+ && echo -e "boutforever\nboutforever" | passwd boutuser \
+ && usermod -aG wheel boutuser \
+ && echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
+
+USER boutuser
+WORKDIR /home/boutuser
+
+RUN git clone -b next --depth 1 git://github.com/boutproject/BOUT-dev.git BOUT-next \
+ && chown boutuser /home/boutuser/BOUT-next
+
+WORKDIR /home/boutuser/BOUT-next
+
+RUN ./configure --with-sundials=/usr/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode --with-lapack LIBS="-llapack -lblas" \
+ && make \
+ && make clean-remove-object-files
+
+ENV PYTHONPATH=/home/boutuser/BOUT-next/tools/pylib/:$PYTHONPATH
+ENV PYTHONIOENCODING=utf-8
+
+#####################
+# Make common folder for moving data to/from host
+WORKDIR /home/boutuser
+RUN mkdir bout-img-shared

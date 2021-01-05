@@ -1,0 +1,111 @@
+# ================================================================================
+#             Dockerfile to setup build environment for BOUT-master build
+#
+# Build example:
+#  sudo docker build -t boutproject/bout-master:3b23201-arch -f arch-bout-master.dkr .
+# 
+# ================================================================================
+
+FROM archlinux/base
+MAINTAINER Ben Dudson "benjamin.dudson@york.ac.uk"
+
+# ----------------------------------------------------------------
+# Convenient network/system tools, python, dependencies
+# ----------------------------------------------------------------
+
+RUN pacman -Syu --noconfirm \
+ && pacman -Sy --noconfirm emacs-nox vim nano git gcc gcc-fortran \
+ fftw cblas lapack cmake sudo core/which gawk \
+ wget make file m4 hdf5 netcdf netcdf-cxx \
+ python-numpy python-scipy python-matplotlib ipython openmpi \
+ && pacman -Scc --noconfirm
+
+#####################
+# Install SUNDIALS
+
+WORKDIR /
+RUN wget https://computation.llnl.gov/projects/sundials/download/sundials-2.7.0.tar.gz \
+ && tar -xvzf sundials-2.7.0.tar.gz \
+ && rm sundials-2.7.0.tar.gz \
+ && cd sundials-2.7.0 \
+ && mkdir build \
+ && mkdir -p /usr/examples \
+ && cd build/ \
+ && cmake \
+  -DCMAKE_INSTALL_PREFIX=/usr/ \
+  -DEXAMPLES_INSTALL_PATH=/usr/examples \
+  -DCMAKE_LINKER=/usr/lib \
+  -DLAPACK_ENABLE=ON \
+  -DOPENMP_ENABLE=ON \
+  -DMPI_ENABLE=ON \
+  ../  \
+ && make \
+ && make install \
+ && cd / \
+ && rm -r sundials-2.7.0
+
+#####################
+# Install PETSC
+#
+# Notes:
+#  - Moved URL for hypre 2.14 release
+#  - Need python2 for PETSc configure, but remove after install
+
+WORKDIR /
+RUN pacman -Sy --noconfirm core/diffutils \
+ && pacman -Scc --noconfirm \
+ && wget https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-lite-3.14.2.tar.gz \
+ && tar -xvzf petsc-lite-3.14.2.tar.gz \
+ && cd petsc-3.14.2/ \
+ && ./configure --with-mpi=yes --with-shared-libraries --with-precision=double --with-scalar-type=real \
+--download-hypre=https://github.com/hypre-space/hypre/archive/v2.14.0.tar.gz \
+ && make -f /petsc-3.14.2/makefile all \
+ && make -f /petsc-3.14.2/makefile PETSC_DIR=/petsc-3.14.2 PETSC_ARCH=arch-linux-c-debug check \
+ && ln -s /petsc-3.14.2/arch-linux-c-debug/include/* /usr/include/ \
+ && ln -s /petsc-3.14.2/arch-linux-c-debug/lib/*a /usr/lib/ \
+ && mkdir -p /usr/lib/modules/ \
+ && ln -s /petsc-3.14.2/arch-linux-c-debug/lib/modules/* /usr/lib/modules/ \
+ && cd /petsc-3.14.2/arch-linux-c-debug/ \
+ && rm -r externalpackages obj \
+ && cd /petsc-3.14.2/ \
+ && rm -r src
+
+ENV PETSC_DIR=/petsc-3.14.2/
+ENV PETSC_ARCH=arch-linux-c-debug
+
+####################
+# Cython
+
+RUN pacman -Sy --noconfirm cython ipython \
+ && pacman -Scc --noconfirm 
+
+# ----------------------------------------------------------------
+# Build and install BOUT++
+# ----------------------------------------------------------------
+
+# configure and build BOUT++ source code
+RUN useradd -ms /bin/bash boutuser \
+ && echo -e "boutforever\nboutforever" | passwd boutuser \
+ && usermod -aG wheel boutuser \
+ && echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
+
+USER boutuser
+WORKDIR /home/boutuser
+
+RUN git clone -b master --depth 1 git://github.com/boutproject/BOUT-dev.git BOUT-master \
+ && chown boutuser /home/boutuser/BOUT-master
+
+WORKDIR /home/boutuser/BOUT-master
+
+RUN ./configure --with-petsc PETSC_DIR=/petsc-3.14.2 PETSC_ARCH=arch-linux-c-debug --with-sundials=/usr/ --with-fftw --with-netcdf --enable-openmp --with-cvode --with-arkode --with-lapack LIBS="-llapack -lblas" --enable-shared --with-hypre \
+ && make \
+ && make python \
+ && make clean-remove-object-files
+
+ENV PYTHONPATH=/home/boutuser/BOUT-master/tools/pylib/:$PYTHONPATH
+ENV PYTHONIOENCODING=utf-8
+
+#####################
+# Make common folder for moving data to/from host
+WORKDIR /home/boutuser
+RUN mkdir bout-img-shared
